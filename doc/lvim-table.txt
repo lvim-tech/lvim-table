@@ -1,0 +1,272 @@
+*lvim-table.txt*            Painless text tables for the lvim-tech set
+
+==============================================================================
+CONTENTS                                                        *lvim-table*
+
+  1. Introduction ........................... |lvim-table-intro|
+  2. Requirements ........................... |lvim-table-requirements|
+  3. Setup .................................. |lvim-table-setup|
+  4. Table mode ............................. |lvim-table-mode|
+  5. Command ................................ |lvim-table-command|
+  6. Operations ............................. |lvim-table-operations|
+  7. Text objects & motions ................. |lvim-table-textobj|
+  8. Tableize ............................... |lvim-table-tableize|
+  9. Formulas ............................... |lvim-table-formulas|
+ 10. API .................................... |lvim-table-api|
+ 11. Highlights ............................. |lvim-table-highlights|
+ 12. Health ................................. |lvim-table-health|
+
+==============================================================================
+1. INTRODUCTION                                           *lvim-table-intro*
+
+lvim-table keeps markdown/org pipe tables aligned as you edit: a per-buffer
+TABLE MODE realigns the block under the cursor on |InsertLeave| and (debounced)
+|TextChanged|, with a snapshot guard so an unchanged block is never reparsed.
+
+Column widths are computed in DISPLAY cells (|strdisplaywidth()|), so CJK
+text, Nerd Font glyphs and escaped pipes ("\|") align correctly. Alignment
+markers in the separator row are honoured and preserved: `:--` left, `:-:`
+center, `--:` right.
+
+A table BLOCK is the maximal run of consecutive lines whose first non-blank
+character is a pipe — plain line scanning, no treesitter, so tables inside
+comments, docstrings and plain text behave the same.
+
+==============================================================================
+2. REQUIREMENTS                                    *lvim-table-requirements*
+
+Neovim >= 0.10 and lvim-utils (palette + merge). lvim-hud is optional — with
+it, an active table mode shows a `󰓫 TABLE` chip on the statusline overlay.
+
+==============================================================================
+3. SETUP                                                  *lvim-table-setup*
+
+Call setup() to merge options, bind the decoration highlights and register
+the |:LvimTable| command and the <Plug> mappings. All defaults: >lua
+
+    require("lvim-table").setup({
+        syntax = { markdown = "markdown", org = "org" },
+        default_syntax = "markdown",
+        padding = 1,
+        realign = {
+            insert_leave = true,
+            text_changed = true,
+            debounce = 80,
+        },
+        expand_separator = true,
+        continue_rows = true,
+        decorations = true,
+        hud_chip = true,
+        formula = {
+            precision = 2,
+        },
+        map_default_keys = false,
+        keys = {
+            realign = "<leader>ta",
+            row_insert = "<leader>tir",
+            row_delete = "<leader>tdr",
+            col_insert = "<leader>tic",
+            col_delete = "<leader>tdc",
+            row_up = "<leader>tK",
+            row_down = "<leader>tJ",
+            col_left = "<leader>tH",
+            col_right = "<leader>tL",
+            eval = "<leader>te",
+        },
+        textobj = {
+            cell_inner = "i|",
+            cell_around = "a|",
+            prev_cell = "[|",
+            next_cell = "]|",
+            cell_up = "{|",
+            cell_down = "}|",
+        },
+        icons = {
+            table = "󰓫",
+        },
+    })
+<
+`syntax` maps a filetype to "markdown" (`|---|---|` separators with `:`
+markers) or "org" (`|---+---|` junction rows); other filetypes use
+`default_syntax`.
+
+==============================================================================
+4. TABLE MODE                                              *lvim-table-mode*
+
+Per buffer; toggle with |:LvimTable|. While on:
+
+Realign as you edit~
+  Leaving insert mode or a normal-mode change realigns the block under the
+  cursor (TextChanged is debounced by `realign.debounce` ms). A snapshot
+  guard skips the reformat when the block text did not change. The cursor is
+  restored into the SAME cell at the same content offset after a reflow.
+
+`||` expands a separator~
+  Typing `||` on an otherwise empty line directly under a table row expands
+  into a full separator row matching that table's columns. (Driven by
+  |InsertCharPre| on committed text, so it also behaves in macro replays.)
+
+<CR> continues the table~
+  In insert mode inside a table row, <CR> appends an aligned empty row and
+  puts the cursor in its first cell. On a ONE-row block (a just-typed
+  header) it inserts the separator row AND the empty row in one go; on an
+  all-empty row it ENDS the table (the row becomes a blank line). Outside a
+  table, or with the completion menu open, <CR> falls through to whatever it
+  did before table mode was enabled — a completion plugin's confirm keeps
+  working.
+
+Decorations~
+  The header row gets |hl-LvimTableHeader| and separator rows
+  |hl-LvimTableSeparator| while the mode is on; cleared with it.
+
+Hud chip~
+  With lvim-hud installed and `hud_chip = true`, the statusline overlay
+  shows `󰓫 TABLE` while the CURRENT buffer has table mode on.
+
+==============================================================================
+5. COMMAND                                              *lvim-table-command*
+
+                                                                *:LvimTable*
+:LvimTable [{sub}] [{arg}]
+    Without a subcommand: toggle table mode for the current buffer.
+
+    toggle | on | off        table mode for the current buffer
+    format                   realign the block under the cursor (mode not
+                             required)
+    from [{pattern}]         |lvim-table-tableize| (needs a range)
+    to [{sep}]               flatten back (needs a range)
+    eval                     |lvim-table-formulas|
+    row-insert               empty row below the cursor row
+    row-insert-above         empty row above the cursor row
+    row-delete               delete the cursor row
+    col-insert               empty column after the cursor column
+    col-insert-before        empty column before the cursor column
+    col-delete               delete the cursor column
+    row-up | row-down        move the cursor row
+    col-left | col-right     move the cursor column
+
+==============================================================================
+6. OPERATIONS                                        *lvim-table-operations*
+
+Every operation works on the parsed cell matrix and re-renders the block, so
+alignment, escapes and separator markers never drift. All are dot-repeatable
+(they run through 'operatorfunc' + `g@`).
+
+<Plug> mappings (normal mode, registered by setup()):
+
+    <Plug>(LvimTableRealign)           realign the block
+    <Plug>(LvimTableRowInsert)         empty row below
+    <Plug>(LvimTableRowInsertAbove)    empty row above
+    <Plug>(LvimTableRowDelete)         delete the cursor row
+    <Plug>(LvimTableColInsert)         empty column after
+    <Plug>(LvimTableColInsertBefore)   empty column before
+    <Plug>(LvimTableColDelete)         delete the cursor column
+    <Plug>(LvimTableColLeft)           move the column left
+    <Plug>(LvimTableColRight)          move the column right
+    <Plug>(LvimTableRowUp)             move the row up
+    <Plug>(LvimTableRowDown)           move the row down
+    <Plug>(LvimTableEval)              evaluate the formula line
+
+Nothing is mapped by default; map the <Plug> targets yourself, or set
+`map_default_keys = true` to get the `keys` table mapped buffer-locally while
+table mode is on.
+
+==============================================================================
+7. TEXT OBJECTS & MOTIONS                               *lvim-table-textobj*
+
+Mapped buffer-locally while table mode is on (set an entry to `false` in
+`textobj` to skip it):
+
+    i|      inner cell — the trimmed content (visual + operator-pending)
+    a|      around cell — everything between the pipes, padding included
+    ]|      next cell (wraps to the first cell of the row below)
+    [|      previous cell (wraps to the last cell of the row above)
+    {|      same column, first data row above
+    }|      same column, first data row below
+
+Motions honour a count and skip separator rows.
+
+==============================================================================
+8. TABLEIZE                                            *lvim-table-tableize*
+
+Turn delimited text into a table and back, over a range: >vim
+
+    :'<,'>LvimTable from            " split on ',' (the default)
+    :'<,'>LvimTable from ;          " any Lua pattern as the delimiter
+    :'<,'>LvimTable to              " flatten back, joined with ', '
+    :'<,'>LvimTable to ;
+<
+`from` makes the first line the header and inserts a separator row under it;
+literal pipes in the data are escaped ("\|") so they survive realignment.
+`to` drops separator rows and unescapes.
+
+==============================================================================
+9. FORMULAS                                            *lvim-table-formulas*
+
+A formula line directly under a table assigns a COLUMN for every data row
+(the cells rows below the first separator): >markdown
+
+    | a   | b   | sum | avg |
+    | --- | --- | --- | --- |
+    | 2   | 3   | 5   | 2.5 |
+
+    <!-- tmf: $3 = $1 + $2; $4 = avg($1..$2) -->
+<
+|:LvimTable| eval recomputes. `$N` is column N of the current row;
+`sum($a..$b)` / `avg($a..$b)` aggregate a column range within the row;
+non-numeric cells count as 0. Both comment styles are accepted anywhere:
+`<!-- tmf: ... -->` and `#+tblfm: ...`. Deliberately a calculator, not a
+spreadsheet: plain arithmetic only, evaluated in an empty sandbox after a
+charset check — a formula can compute, never call.
+
+==============================================================================
+10. API                                                     *lvim-table-api*
+
+                                                        *lvim-table.setup()*
+require("lvim-table").setup({opts})
+    Merge {opts} into the live config, bind the self-theming highlights,
+    register the <Plug> mappings and |:LvimTable|.
+
+                                                       *lvim-table.enable()*
+require("lvim-table").enable({buf})
+    Turn table mode on ({buf} defaults to the current buffer).
+
+                                                      *lvim-table.disable()*
+require("lvim-table").disable({buf})
+    Turn table mode off.
+
+                                                       *lvim-table.toggle()*
+require("lvim-table").toggle({buf})
+    Toggle; returns the new state (boolean).
+
+                                                    *lvim-table.is_active()*
+require("lvim-table").is_active({buf})
+    Whether table mode is on — for statusline components.
+
+                                                      *lvim-table.realign()*
+require("lvim-table").realign()
+    Realign the table block under the cursor once (mode not required).
+
+==============================================================================
+11. HIGHLIGHTS                                       *lvim-table-highlights*
+
+Self-themed from the lvim-utils palette, re-derived on ColorScheme / palette
+sync:
+
+                                                         *hl-LvimTableHeader*
+LvimTableHeader      the header row (blue, bold)
+
+                                                      *hl-LvimTableSeparator*
+LvimTableSeparator   separator rows (fg dimmed toward the background)
+
+==============================================================================
+12. HEALTH                                               *lvim-table-health*
+
+                                                    *:checkhealth-lvim-table*
+:checkhealth lvim-table
+    Reports the lvim-utils dependency, the optional lvim-hud chip, config
+    validation (syntax names, padding/debounce/precision domains, the chip
+    glyph's display width), and a live CJK round-trip through the align
+    engine.
+
+vim:tw=78:ts=8:ft=help:norl:
