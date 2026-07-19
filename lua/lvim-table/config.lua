@@ -17,8 +17,10 @@
 ---@class LvimTableKeysConfig
 ---@field realign    string  Realign the table block under the cursor
 ---@field row_insert string  Insert an empty row below the cursor row
+---@field row_insert_above string  Insert an empty row above the cursor row
 ---@field row_delete string  Delete the cursor row
 ---@field col_insert string  Insert an empty column after the cursor column
+---@field col_insert_before string  Insert an empty column before the cursor column
 ---@field col_delete string  Delete the cursor column
 ---@field row_up     string  Move the cursor row up
 ---@field row_down   string  Move the cursor row down
@@ -89,8 +91,10 @@ return {
     keys = {
         realign = "<leader>ta",
         row_insert = "<leader>tir",
+        row_insert_above = "<leader>tiR",
         row_delete = "<leader>tdr",
         col_insert = "<leader>tic",
+        col_insert_before = "<leader>tiC",
         col_delete = "<leader>tdc",
         row_up = "<leader>tK",
         row_down = "<leader>tJ",

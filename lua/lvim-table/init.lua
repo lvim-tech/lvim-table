@@ -120,15 +120,22 @@ local function realign_now(buf)
     end
     local lnum = api.nvim_win_get_cursor(0)[1]
     local srow, erow = detect.block(buf, lnum)
+    local changed = false
     if srow and erow then
         local old = api.nvim_buf_get_lines(buf, srow - 1, erow, false)
         if table.concat(old, "\n") ~= st.snapshot then
             local new = fmt.align(old, { syntax = fmt.syntax_for(buf), padding = config.padding })
-            fmt.write(buf, srow, old, new)
+            changed = fmt.write(buf, srow, old, new)
             st.snapshot = table.concat(new, "\n")
         end
     end
-    decorate(buf)
+    -- Only rescan/repaint the whole buffer when the realign ACTUALLY rewrote something. The initial
+    -- decoration (M.enable) and post-op decorations call decorate() themselves, so a no-op
+    -- InsertLeave/TextChanged (snapshot match, or cursor not in a table) skips the O(N) namespace
+    -- rebuild — which is exactly what the module header promised ("the scan runs when we realign").
+    if changed then
+        decorate(buf)
+    end
 end
 
 --- Debounced realign: the TextChanged burst (a put, a repeat, a plugin edit) coalesces into
@@ -379,9 +386,14 @@ function M.enable(buf)
     end
 
     -- Capture what <CR> resolves to BEFORE our buffer-local map shadows it (buffer-local maps
-    -- win maparg lookups, so this must happen first).
+    -- win maparg lookups, so this must happen first). maparg is evaluated in the CURRENT buffer's
+    -- context, so run it inside the TARGET buffer — otherwise M.enable(other_buf) records the
+    -- current buffer's <CR> (possibly lvim-table's own handler) as the prior mapping.
     local prior_cr = nil
-    local m = vim.fn.maparg("<CR>", "i", false, true)
+    local m = {}
+    api.nvim_buf_call(buf, function()
+        m = vim.fn.maparg("<CR>", "i", false, true)
+    end)
     if not vim.tbl_isempty(m) then
         prior_cr = m
     end
@@ -480,8 +492,10 @@ function M.enable(buf)
         local plug = {
             realign = "<Plug>(LvimTableRealign)",
             row_insert = "<Plug>(LvimTableRowInsert)",
+            row_insert_above = "<Plug>(LvimTableRowInsertAbove)",
             row_delete = "<Plug>(LvimTableRowDelete)",
             col_insert = "<Plug>(LvimTableColInsert)",
+            col_insert_before = "<Plug>(LvimTableColInsertBefore)",
             col_delete = "<Plug>(LvimTableColDelete)",
             row_up = "<Plug>(LvimTableRowUp)",
             row_down = "<Plug>(LvimTableRowDown)",
@@ -526,7 +540,11 @@ function M.disable(buf)
         end
         api.nvim_buf_clear_namespace(buf, state.ns, 0, -1)
     end
-    chip(false)
+    -- Only clear the HUD chip if we are disabling the CURRENT buffer. Disabling a BACKGROUND buffer
+    -- (e.g. :bdelete of a hidden table-mode buffer) must not wipe the chip of the buffer still shown.
+    if api.nvim_get_current_buf() == buf then
+        chip(false)
+    end
 end
 
 --- Toggle table mode for a buffer.

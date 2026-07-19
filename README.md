@@ -120,7 +120,7 @@ Turn delimited text into a table and back, over a range:
 
 ```vim
 :'<,'>LvimTable from            " split on ',' (default)
-:'<,'>LvimTable from ;          " any Lua pattern as the delimiter
+:'<,'>LvimTable from ;          " a Lua pattern as the delimiter (escape magic chars: %. %- etc.)
 :'<,'>LvimTable to              " flatten back, joined with ', '
 :'<,'>LvimTable to ;
 ```
@@ -172,8 +172,10 @@ require("lvim-table").setup({
     keys = {
         realign = "<leader>ta",
         row_insert = "<leader>tir",
+        row_insert_above = "<leader>tiR",
         row_delete = "<leader>tdr",
         col_insert = "<leader>tic",
+        col_insert_before = "<leader>tiC",
         col_delete = "<leader>tdc",
         row_up = "<leader>tK",
         row_down = "<leader>tJ",
