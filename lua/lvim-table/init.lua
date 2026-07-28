@@ -377,6 +377,28 @@ end
 --- Turn table mode ON for a buffer: autocmds (realign triggers, chip, teardown), the
 --- insert-mode conveniences, cell text objects/motions, optionally the default op keys — and
 --- one immediate realign of the block under the cursor as feedback.
+--- Realign EVERY table block in a buffer (the on-save pass): walk the lines, realign each
+--- block once, hop over it.
+---@param buf integer
+---@return nil
+local function realign_all(buf)
+    local total = api.nvim_buf_get_lines(buf, 0, -1, false)
+    local lnum = 1
+    while lnum <= #total do
+        if detect.is_row(total[lnum]) then
+            local srow, erow = detect.block(buf, lnum)
+            if srow ~= nil then
+                fmt.realign(buf, srow)
+                lnum = (erow or lnum) + 1
+            else
+                lnum = lnum + 1
+            end
+        else
+            lnum = lnum + 1
+        end
+    end
+end
+
 ---@param buf integer?  defaults to the current buffer
 ---@return nil
 function M.enable(buf)
@@ -400,6 +422,9 @@ function M.enable(buf)
 
     local group = api.nvim_create_augroup("lvim-table-b" .. buf, { clear = true })
     state.buffers[buf] = { augroup = group, timer = nil, snapshot = nil, prior_cr = prior_cr, maps = {} }
+    -- The persistent-state seam for statusline segments: fire on both transitions, so a segment
+    -- keyed on `User LvimTableMode` repaints exactly when `is_active()` changes.
+    api.nvim_exec_autocmds("User", { pattern = "LvimTableMode", modeline = false })
 
     api.nvim_create_autocmd("InsertLeave", {
         group = group,
@@ -418,6 +443,17 @@ function M.enable(buf)
         callback = function()
             if config.realign.text_changed then
                 schedule_realign(buf)
+            end
+        end,
+    })
+    api.nvim_create_autocmd("BufWritePre", {
+        group = group,
+        buffer = buf,
+        desc = "lvim-table: realign every table block on save",
+        callback = function()
+            if config.realign.on_save then
+                realign_all(buf)
+                decorate(buf)
             end
         end,
     })
@@ -545,6 +581,7 @@ function M.disable(buf)
     if api.nvim_get_current_buf() == buf then
         chip(false)
     end
+    api.nvim_exec_autocmds("User", { pattern = "LvimTableMode", modeline = false })
 end
 
 --- Toggle table mode for a buffer.

@@ -10,6 +10,8 @@
 ---@field insert_leave boolean  Realign the table block under the cursor on InsertLeave
 ---@field text_changed boolean  Realign (debounced) on TextChanged — normal-mode edits
 ---@field debounce     integer  Milliseconds the TextChanged realign is debounced
+---@field on_save      boolean  Realign EVERY table block in the buffer on BufWritePre (table
+---   mode buffers only — saving is the moment a half-typed table must leave the file aligned)
 
 ---@class LvimTableFormulaConfig
 ---@field precision integer  Decimal places for non-integer formula results (trailing zeros trimmed)
@@ -69,6 +71,7 @@ return {
         -- The TextChanged burst (put, repeat, plugins) is coalesced into one realign. A snapshot
         -- guard additionally skips the reformat entirely when the block did not actually change.
         debounce = 80,
+        on_save = true,
     },
     -- Typing `||` on an otherwise empty line directly under a table row expands into a full
     -- separator row matching that table's columns (the quickest way to close a header).
@@ -81,7 +84,11 @@ return {
     decorations = true,
     -- Publish a "󰓫 TABLE" chip to the lvim-hud statusline overlay while the CURRENT buffer has
     -- table mode on (cross-plugin optional — silently skipped when lvim-hud is absent).
-    hud_chip = true,
+    -- OFF by default: the lvim-hud OVERLAY is transient by contract (finder/echo takeovers) and
+    -- showing a persistent chip there REPLACES the whole statusline for the session (measured —
+    -- "table mode hides the statusline"). The persistent seam is a statusline SEGMENT reading
+    -- `require("lvim-table").is_active(buf)`, refreshed by the `User LvimTableMode` event.
+    hud_chip = false,
     formula = {
         precision = 2,
     },

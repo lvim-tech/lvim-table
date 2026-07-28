@@ -4,7 +4,8 @@ Painless text tables for the **lvim-tech** set — a per-buffer **table mode** t
 markdown/org pipe tables aligned as you edit, plus row/column operations, cell text objects and
 motions, tableize (delimited text ⇄ table) and a small formula calculator.
 
-Column widths are computed in **display cells** (`strdisplaywidth`), so CJK text, Nerd Font
+Tables realign **on save** too (`realign.on_save`) — every table block in the buffer leaves the
+file aligned, not only the one under the cursor. Column widths are computed in **display cells** (`strdisplaywidth`), so CJK text, Nerd Font
 glyphs and escaped pipes (`\|`) align correctly where byte-counting formatters produce sawtooth
 columns. Alignment markers in the separator row are honoured and preserved: `:--` left, `:-:`
 center, `--:` right.
@@ -160,11 +161,12 @@ require("lvim-table").setup({
         insert_leave = true, -- realign on InsertLeave
         text_changed = true, -- realign (debounced) on TextChanged
         debounce = 80, -- ms the TextChanged realign is coalesced
+        on_save = true, -- realign every table block on BufWritePre
     },
     expand_separator = true, -- `||` on its own line expands to a separator row
     continue_rows = true, -- <CR> in insert inside a table continues with an empty row
     decorations = true, -- highlight header/separator rows while the mode is on
-    hud_chip = true, -- show `󰓫 TABLE` on the lvim-hud overlay while active
+    hud_chip = false, -- show `󰓫 TABLE` on the lvim-hud overlay while active
     formula = {
         precision = 2, -- decimals for non-integer results (trailing zeros trimmed)
     },
