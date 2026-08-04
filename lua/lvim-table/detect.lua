@@ -46,7 +46,9 @@ end
 ---@param line string?
 ---@return boolean
 function M.is_separator(line)
-    if not M.is_row(line) then
+    -- `line` is re-tested here rather than leaning on `is_row`: a boolean return carries no nil
+    -- information, so the trim below would still be reading a `string?`.
+    if not line or not M.is_row(line) then
         return false
     end
     local body = vim.trim(line)
