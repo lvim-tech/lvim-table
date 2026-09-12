@@ -35,7 +35,7 @@ comments, docstrings and plain text behave the same.
 ==============================================================================
 2. REQUIREMENTS                                    *lvim-table-requirements*
 
-Neovim >= 0.10 and lvim-utils (palette + merge). lvim-hud is optional — with
+Neovim >= 0.12 and lvim-utils (palette + merge). lvim-hud is optional — with
 it, an active table mode shows a `󰓫 TABLE` chip on the statusline overlay.
 
 ==============================================================================

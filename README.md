@@ -14,7 +14,7 @@ center, `--:` right.
 
 ## Requirements
 
-Requires **Neovim >= 0.10** and [lvim-utils](https://github.com/lvim-tech/lvim-utils) (the
+Requires **Neovim >= 0.12** and [lvim-utils](https://github.com/lvim-tech/lvim-utils) (the
 palette + the shared merge). [lvim-hud](https://github.com/lvim-tech/lvim-hud) is optional —
 with it, an active table mode shows a `󰓫 TABLE` chip on the statusline overlay.
 
